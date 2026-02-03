@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, Play, AlertCircle, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
+import { CheckCircle2, Play, AlertCircle, Trash2, ArrowUp, ArrowDown, Bell } from 'lucide-react';
 import { Task, TaskStatus } from '../types';
 import { QUADRANTS } from '../constants';
 
@@ -57,6 +57,17 @@ export const TaskCard: React.FC<TaskCardProps> = ({
     return null; // Done state has no action usually
   };
 
+  const formatReminder = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    
+    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    
+    return isToday ? `Today, ${timeStr}` : `${dateStr}, ${timeStr}`;
+  };
+
   return (
     <div className={`
       relative group bg-white p-4 rounded-xl border transition-all duration-200
@@ -99,9 +110,18 @@ export const TaskCard: React.FC<TaskCardProps> = ({
 
       {/* Footer Row: Date & Actions */}
       <div className="flex items-center justify-between pl-3">
-        <span className="text-xs text-slate-400">
-           {new Date(task.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-slate-400">
+             {new Date(task.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+          </span>
+          
+          {task.reminder && task.status !== TaskStatus.DONE && (
+            <span className={`flex items-center gap-1 text-[10px] ${task.reminder < Date.now() ? 'text-rose-500 font-medium' : 'text-slate-400'}`}>
+               <Bell size={10} />
+               {formatReminder(task.reminder)}
+            </span>
+          )}
+        </div>
         
         <div className="flex items-center gap-2">
           {/* Reorder Controls */}

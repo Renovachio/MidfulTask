@@ -19,6 +19,7 @@ export interface Task {
   createdAt: number;
   completedAt?: number;
   order: number;
+  reminder?: number; // Timestamp for reminder
 }
 
 export interface EmotionalState {

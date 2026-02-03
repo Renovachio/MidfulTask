@@ -2,23 +2,31 @@ import React, { useState } from 'react';
 import { EisenhowerQuadrant } from '../types';
 import { QUADRANTS } from '../constants';
 import { Button } from './Button';
+import { Bell, X } from 'lucide-react';
 
 interface TaskInputProps {
-  onAddTask: (content: string, quadrant: EisenhowerQuadrant) => void;
+  onAddTask: (content: string, quadrant: EisenhowerQuadrant, reminder?: number) => void;
   onCancel: () => void;
 }
 
 export const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel }) => {
   const [content, setContent] = useState('');
   const [selectedQuadrant, setSelectedQuadrant] = useState<EisenhowerQuadrant | null>(null);
+  const [showReminder, setShowReminder] = useState(false);
+  const [reminderDate, setReminderDate] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim() || !selectedQuadrant) return;
 
-    onAddTask(content, selectedQuadrant);
+    const reminderTimestamp = reminderDate ? new Date(reminderDate).getTime() : undefined;
+    onAddTask(content, selectedQuadrant, reminderTimestamp);
+    
+    // Reset form
     setContent('');
     setSelectedQuadrant(null);
+    setReminderDate('');
+    setShowReminder(false);
   };
 
   return (
@@ -35,7 +43,37 @@ export const TaskInput: React.FC<TaskInputProps> = ({ onAddTask, onCancel }) => 
           className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none min-h-[100px]"
           autoFocus
         />
-        <div className="flex justify-end mt-1">
+        <div className="flex justify-between items-center mt-2">
+          {!showReminder ? (
+            <button
+              type="button"
+              onClick={() => setShowReminder(true)}
+              className="text-xs flex items-center gap-1.5 text-slate-500 hover:text-indigo-600 transition-colors px-2 py-1 rounded hover:bg-slate-50"
+            >
+              <Bell size={14} />
+              Set Reminder
+            </button>
+          ) : (
+             <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
+                <input 
+                  type="datetime-local"
+                  value={reminderDate}
+                  onChange={(e) => setReminderDate(e.target.value)}
+                  className="text-xs p-1.5 border border-slate-200 rounded text-slate-600 focus:border-indigo-500 outline-none"
+                />
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowReminder(false);
+                    setReminderDate('');
+                  }}
+                  className="text-slate-400 hover:text-rose-500"
+                >
+                  <X size={14} />
+                </button>
+             </div>
+          )}
+
           <span className={`text-xs ${content.length > 200 ? 'text-green-600' : 'text-slate-400'}`}>
             {content.length} chars
           </span>

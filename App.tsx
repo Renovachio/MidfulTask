@@ -18,7 +18,7 @@ import { Button } from './components/Button';
 import { EmotionalCheckIn } from './components/EmotionalCheckIn';
 import { BottomNav } from './components/BottomNav';
 import { AnalyticsView } from './components/AnalyticsView';
-import { BrainCircuit, ChevronDown, Plus, Play, Sparkles } from 'lucide-react';
+import { BrainCircuit, ChevronDown, Plus, Play, Sparkles, AlertCircle } from 'lucide-react';
 
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -64,6 +64,11 @@ const App: React.FC = () => {
       setCheckInContext('STARTUP');
       setCheckInOpen(true);
     }
+
+    // Request Notification Permission
+    if ("Notification" in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
   }, []);
 
   // Persist data
@@ -71,6 +76,33 @@ const App: React.FC = () => {
     if (isLoaded) {
       saveTasks(tasks);
     }
+  }, [tasks, isLoaded]);
+
+  // Check Reminders
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const checkReminders = () => {
+      const now = Date.now();
+      tasks.forEach(task => {
+        if (task.reminder && task.status !== TaskStatus.DONE) {
+          // Check if reminder is within the last minute (to trigger once)
+          // We assume check runs often. 
+          // Simple logic: If current time is past reminder, and reminder was less than 60s ago
+          if (task.reminder <= now && task.reminder > now - 60000) {
+            if ("Notification" in window && Notification.permission === "granted") {
+              new Notification("MindfulTask Reminder", {
+                body: `Time to focus on: ${task.content}`,
+                icon: '/vite.svg' // Fallback icon
+              });
+            }
+          }
+        }
+      });
+    };
+
+    const interval = setInterval(checkReminders, 30000); // Check every 30s
+    return () => clearInterval(interval);
   }, [tasks, isLoaded]);
 
   // Derived state: Sorted Lists
@@ -97,7 +129,7 @@ const App: React.FC = () => {
     return { backlogTasks: backlog, inProgressTasks: inProgress, doneTasks: done };
   }, [tasks]);
 
-  const addTask = (content: string, quadrant: EisenhowerQuadrant) => {
+  const addTask = (content: string, quadrant: EisenhowerQuadrant, reminder?: number) => {
     // Find max order in current quadrant to append to bottom
     const existingInQuadrant = tasks.filter(t => t.quadrant === quadrant && t.status === TaskStatus.BACKLOG);
     const maxOrder = existingInQuadrant.length > 0 
@@ -111,6 +143,7 @@ const App: React.FC = () => {
       status: TaskStatus.BACKLOG,
       createdAt: Date.now(),
       order: maxOrder + 1,
+      reminder
     };
     setTasks(prev => [...prev, newTask]);
     setIsCreateModalOpen(false);
@@ -338,23 +371,40 @@ const App: React.FC = () => {
               </span>
             </h2>
             
-            <div className="space-y-3 min-h-[100px] bg-slate-50/50 rounded-xl p-2 border border-dashed border-slate-200">
-              {inProgressTasks.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 py-8">
-                  <span className="text-sm">Ready to focus?</span>
-                  <span className="text-xs opacity-70">Pick the top task from Backlog</span>
+            {/* Styled Single Focus Slot */}
+            <div className={`
+                relative min-h-[160px] rounded-xl p-3 border-2 border-dashed transition-all duration-300
+                ${inProgressTasks.length > 0 
+                  ? 'border-blue-200 bg-blue-50/20' 
+                  : 'border-slate-300 bg-slate-50/50 flex flex-col items-center justify-center'
+                }
+            `}>
+              
+              {/* Watermark for Single Focus */}
+              {inProgressTasks.length === 0 && (
+                <div className="text-center opacity-40 pointer-events-none select-none">
+                    <div className="w-12 h-12 rounded-full border-2 border-slate-400 flex items-center justify-center mx-auto mb-2 text-slate-400">
+                        <span className="text-xl font-bold">1</span>
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">One At A Time</p>
                 </div>
-              ) : (
-                inProgressTasks.map(task => (
+              )}
+
+              {inProgressTasks.map(task => (
                   <TaskCard 
                     key={task.id} 
                     task={task} 
                     onMove={completeTask}
                     onDelete={handleDeleteTask}
                   />
-                ))
-              )}
+              ))}
             </div>
+            
+            {inProgressTasks.length === 0 && (
+              <p className="text-center text-xs text-slate-400">
+                To start, pick the top card from your Backlog.
+              </p>
+            )}
           </section>
 
           {/* Done Column */}
