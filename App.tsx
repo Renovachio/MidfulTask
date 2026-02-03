@@ -6,6 +6,7 @@ import {
   EmotionalState 
 } from './types';
 import { 
+  QUADRANTS,
   QUADRANT_PRIORITY, 
   MAX_VISIBLE_BACKLOG 
 } from './constants';
@@ -17,7 +18,7 @@ import { Button } from './components/Button';
 import { EmotionalCheckIn } from './components/EmotionalCheckIn';
 import { BottomNav } from './components/BottomNav';
 import { AnalyticsView } from './components/AnalyticsView';
-import { BrainCircuit, ChevronDown, Plus } from 'lucide-react';
+import { BrainCircuit, ChevronDown, Plus, Play, Sparkles } from 'lucide-react';
 
 const App: React.FC = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -25,7 +26,7 @@ const App: React.FC = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   
   // Navigation State
-  const [activeTab, setActiveTab] = useState<'board' | 'analytics'>('board');
+  const [activeTab, setActiveTab] = useState<'home' | 'board' | 'analytics'>('home');
 
   // Task Creation Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -43,8 +44,17 @@ const App: React.FC = () => {
 
   // Load data on mount
   useEffect(() => {
-    const loadedTasks = loadTasks();
+    let loadedTasks = loadTasks();
     const loadedEmotions = loadEmotions();
+
+    // Migration: Assign order to existing tasks if missing
+    if (loadedTasks.some(t => typeof t.order !== 'number')) {
+      loadedTasks = loadedTasks
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .map((t, i) => ({ ...t, order: t.order ?? i }));
+      saveTasks(loadedTasks);
+    }
+
     setTasks(loadedTasks);
     setEmotions(loadedEmotions);
     setIsLoaded(true);
@@ -72,8 +82,8 @@ const App: React.FC = () => {
         const pA = QUADRANT_PRIORITY[a.quadrant];
         const pB = QUADRANT_PRIORITY[b.quadrant];
         if (pA !== pB) return pA - pB;
-        // Secondary sort: FIFO (Creation time)
-        return a.createdAt - b.createdAt;
+        // Secondary sort: Custom Order
+        return (a.order || 0) - (b.order || 0);
       });
 
     const inProgress = tasks
@@ -88,15 +98,55 @@ const App: React.FC = () => {
   }, [tasks]);
 
   const addTask = (content: string, quadrant: EisenhowerQuadrant) => {
+    // Find max order in current quadrant to append to bottom
+    const existingInQuadrant = tasks.filter(t => t.quadrant === quadrant && t.status === TaskStatus.BACKLOG);
+    const maxOrder = existingInQuadrant.length > 0 
+      ? Math.max(...existingInQuadrant.map(t => t.order)) 
+      : 0;
+
     const newTask: Task = {
       id: crypto.randomUUID(),
       content,
       quadrant,
       status: TaskStatus.BACKLOG,
       createdAt: Date.now(),
+      order: maxOrder + 1,
     };
     setTasks(prev => [...prev, newTask]);
     setIsCreateModalOpen(false);
+  };
+
+  const handleDeleteTask = (task: Task) => {
+    if (confirm('Are you sure you want to delete this task?')) {
+      setTasks(prev => prev.filter(t => t.id !== task.id));
+    }
+  };
+
+  const handleReorder = (task: Task, direction: 'up' | 'down') => {
+    setTasks(prev => {
+      // 1. Isolate the list we are working within (same quadrant, same status)
+      const group = prev
+        .filter(t => t.quadrant === task.quadrant && t.status === task.status)
+        .sort((a, b) => a.order - b.order);
+
+      const currentIndex = group.findIndex(t => t.id === task.id);
+      if (currentIndex === -1) return prev;
+
+      // 2. Determine target to swap with
+      const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      
+      // Bounds check
+      if (targetIndex < 0 || targetIndex >= group.length) return prev;
+      
+      const targetTask = group[targetIndex];
+
+      // 3. Swap orders directly
+      return prev.map(t => {
+        if (t.id === task.id) return { ...t, order: targetTask.order };
+        if (t.id === targetTask.id) return { ...t, order: task.order };
+        return t;
+      });
+    });
   };
 
   const attemptStartTask = (task: Task) => {
@@ -122,6 +172,8 @@ const App: React.FC = () => {
     ));
     setFrictionModalOpen(false);
     setPendingTask(null);
+    // Switch to home tab to focus on the task
+    setActiveTab('home');
   };
 
   const completeTask = (task: Task) => {
@@ -161,7 +213,69 @@ const App: React.FC = () => {
       </header>
 
       {/* Main Content Area */}
-      {activeTab === 'board' ? (
+      {activeTab === 'home' && (
+        <div className="animate-in fade-in duration-500 flex flex-col items-center justify-center min-h-[50vh] max-w-lg mx-auto">
+           {inProgressTasks.length > 0 ? (
+             <div className="w-full">
+               <div className="flex items-center justify-center gap-2 mb-6 text-slate-500 text-sm uppercase tracking-widest font-semibold">
+                  <Sparkles size={16} className="text-amber-400" />
+                  Current Focus
+               </div>
+               <div className="transform scale-105 transition-transform duration-500">
+                  <TaskCard 
+                    task={inProgressTasks[0]} 
+                    onMove={completeTask}
+                    onDelete={handleDeleteTask}
+                  />
+               </div>
+               <p className="text-center mt-8 text-slate-400 text-sm italic">
+                 "Do it now. The future is purchased by the present."
+               </p>
+             </div>
+           ) : (
+             <div className="w-full text-center space-y-8">
+               <div className="space-y-2">
+                 <h2 className="text-3xl font-bold text-slate-800">Ready to focus?</h2>
+                 <p className="text-slate-500">Pick the top task from Backlog</p>
+               </div>
+               
+               {backlogTasks.length > 0 ? (
+                 <div className="text-left bg-white p-6 rounded-2xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
+                    <div className="flex justify-between items-start mb-4">
+                      <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider bg-indigo-50 px-2 py-1 rounded">
+                        Next Up
+                      </span>
+                      <span className={`text-[10px] font-medium px-2 py-1 rounded-full ${QUADRANTS[backlogTasks[0].quadrant].bgColor} ${QUADRANTS[backlogTasks[0].quadrant].color}`}>
+                        {QUADRANTS[backlogTasks[0].quadrant].label}
+                      </span>
+                    </div>
+                    
+                    <h3 className="text-lg font-medium text-slate-800 mb-6 leading-relaxed">
+                      {backlogTasks[0].content}
+                    </h3>
+                    
+                    <Button 
+                      onClick={() => attemptStartTask(backlogTasks[0])} 
+                      className="w-full flex items-center justify-center gap-2 py-3"
+                    >
+                       <Play size={18} fill="currentColor" /> Start Task
+                    </Button>
+                 </div>
+               ) : (
+                 <div className="p-8 border-2 border-dashed border-slate-200 rounded-2xl bg-white/50">
+                    <p className="text-slate-500 mb-4">Your backlog is empty. Enjoy the peace or capture a new thought.</p>
+                    <Button variant="secondary" onClick={() => setIsCreateModalOpen(true)}>
+                      <Plus size={16} className="mr-2" /> Add Task
+                    </Button>
+                 </div>
+               )}
+             </div>
+           )}
+        </div>
+      )}
+
+      {activeTab === 'board' && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start animate-in fade-in duration-300">
           
           {/* Backlog Column */}
@@ -177,21 +291,30 @@ const App: React.FC = () => {
             
             <div className="space-y-3">
               {backlogTasks.length === 0 ? (
-                <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-xl">
+                <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-xl bg-white/50">
                   <p className="text-slate-400 text-sm">No pending tasks.</p>
                 </div>
               ) : (
                 <>
                   {backlogTasks
                     .slice(0, showFullBacklog ? undefined : MAX_VISIBLE_BACKLOG)
-                    .map((task, index) => (
-                      <TaskCard 
-                        key={task.id} 
-                        task={task} 
-                        onMove={attemptStartTask} 
-                        isNextUp={index === 0}
-                      />
-                    ))}
+                    .map((task, index) => {
+                      const quadrantTasks = backlogTasks.filter(t => t.quadrant === task.quadrant);
+                      const qIndex = quadrantTasks.findIndex(t => t.id === task.id);
+                      
+                      return (
+                        <TaskCard 
+                          key={task.id} 
+                          task={task} 
+                          onMove={attemptStartTask}
+                          onDelete={handleDeleteTask}
+                          onReorder={handleReorder}
+                          canMoveUp={qIndex > 0}
+                          canMoveDown={qIndex < quadrantTasks.length - 1}
+                          isNextUp={index === 0}
+                        />
+                      );
+                    })}
                   
                   {backlogTasks.length > MAX_VISIBLE_BACKLOG && !showFullBacklog && (
                     <button 
@@ -226,7 +349,8 @@ const App: React.FC = () => {
                   <TaskCard 
                     key={task.id} 
                     task={task} 
-                    onMove={completeTask} 
+                    onMove={completeTask}
+                    onDelete={handleDeleteTask}
                   />
                 ))
               )}
@@ -235,9 +359,9 @@ const App: React.FC = () => {
 
           {/* Done Column */}
           <section className="space-y-4">
-            <h2 className="font-semibold text-green-700 flex items-center gap-2">
+            <h2 className="font-semibold text-mindful-secondaryText flex items-center gap-2">
               Completed
-              <span className="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">
+              <span className="bg-mindful-secondaryDim text-mindful-secondaryText text-xs px-2 py-0.5 rounded-full">
                 {doneTasks.length}
               </span>
             </h2>
@@ -245,7 +369,7 @@ const App: React.FC = () => {
             <div className="space-y-3 opacity-80">
               {doneTasks.length === 0 ? (
                 <div className="text-center py-10">
-                   <p className="text-slate-300 text-sm italic">Small steps lead to big progress.</p>
+                   <p className="text-slate-400 text-sm italic">Small steps lead to big progress.</p>
                 </div>
               ) : (
                 doneTasks.slice(0, 5).map(task => (
@@ -253,6 +377,7 @@ const App: React.FC = () => {
                     key={task.id} 
                     task={task} 
                     onMove={() => {}} 
+                    onDelete={handleDeleteTask}
                   />
                 ))
               )}
@@ -264,7 +389,9 @@ const App: React.FC = () => {
             </div>
           </section>
         </div>
-      ) : (
+      )}
+
+      {activeTab === 'analytics' && (
         <AnalyticsView tasks={tasks} emotions={emotions} />
       )}
 

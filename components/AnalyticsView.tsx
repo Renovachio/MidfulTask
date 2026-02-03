@@ -1,17 +1,80 @@
-import React from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Task, EmotionalState, TaskStatus } from '../types';
 import { QUADRANTS } from '../constants';
-import { CheckCircle2, Smile, Activity } from 'lucide-react';
+import { 
+  CheckCircle2, 
+  Smile, 
+  Activity, 
+  Heart, 
+  Zap, 
+  Coffee, 
+  Wind,
+  Brain,
+  ShieldCheck,
+  Lightbulb,
+  RefreshCw
+} from 'lucide-react';
 
 interface AnalyticsViewProps {
   tasks: Task[];
   emotions: EmotionalState[];
 }
 
+const PERSPECTIVE_QUOTES = [
+  {
+    quote: "Anxiety is the dizziness of freedom. It often arises not because you can't handle things, but because you care about the outcome.",
+    action: "Try to replace \"I have to\" with \"I choose to\"."
+  },
+  {
+    quote: "You don't have to control your thoughts. You just have to stop letting them control you.",
+    action: "Observe your thought, label it 'thinking', and let it float by."
+  },
+  {
+    quote: "Present fear is just the imagination of a future that hasn't happened yet.",
+    action: "Ask yourself: Is there a problem right now, in this exact second?"
+  },
+  {
+    quote: "The only way to eat an elephant is one bite at a time.",
+    action: "Focus only on the very next physical action you need to take."
+  },
+  {
+    quote: "Productivity is not about doing more. It is about creating more impact with less work.",
+    action: "What is the one thing that, if done, makes everything else easier?"
+  },
+  {
+    quote: "Feelings are just visitors, let them come and go.",
+    action: "Acknowledge the anxiety, thank it for trying to protect you, and return to the task."
+  },
+  {
+    quote: "Perfectionism is the voice of the oppressor, the enemy of the people.",
+    action: "Aim for B+ work. It is usually good enough and gets done faster."
+  }
+];
+
 export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, emotions }) => {
-  const completedTasks = tasks.filter(t => t.status === TaskStatus.DONE);
-  const backlogTasks = tasks.filter(t => t.status === TaskStatus.BACKLOG);
-  
+  const [quoteIndex, setQuoteIndex] = useState(0);
+
+  useEffect(() => {
+    setQuoteIndex(Math.floor(Math.random() * PERSPECTIVE_QUOTES.length));
+  }, []);
+
+  const handlePerspectiveClick = () => {
+    setQuoteIndex(prev => {
+      let next = Math.floor(Math.random() * PERSPECTIVE_QUOTES.length);
+      while (next === prev && PERSPECTIVE_QUOTES.length > 1) {
+        next = Math.floor(Math.random() * PERSPECTIVE_QUOTES.length);
+      }
+      return next;
+    });
+  };
+
+  const { completedTasks, backlogTasks } = useMemo(() => {
+    return {
+      completedTasks: tasks.filter(t => t.status === TaskStatus.DONE),
+      backlogTasks: tasks.filter(t => t.status === TaskStatus.BACKLOG)
+    };
+  }, [tasks]);
+
   // Calculate Quadrant Distribution
   const quadrantCounts = backlogTasks.reduce((acc, task) => {
     acc[task.quadrant] = (acc[task.quadrant] || 0) + 1;
@@ -20,29 +83,142 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, emotions })
 
   const totalBacklog = backlogTasks.length;
 
+  // Insight Generator Logic
+  const getInsight = () => {
+    const doFirstCount = quadrantCounts['DO_FIRST'] || 0;
+    const recentFeeling = emotions.length > 0 ? emotions[emotions.length - 1].feeling : null;
+
+    if (totalBacklog === 0 && completedTasks.length > 0) {
+        return {
+            title: "Moment of Clarity",
+            message: "Your board is clear. This is a rare moment of empty space—try to enjoy it without rushing to fill it.",
+            color: "text-mindful-secondaryText",
+            bg: "bg-mindful-secondaryDim",
+            border: "border-mindful-secondary/30",
+            icon: <Wind size={20} />
+        };
+    }
+
+    if (recentFeeling === 'OVERWHELMED' || recentFeeling === 'ANXIOUS') {
+        return {
+            title: "Signal to Pause",
+            message: "Your emotions are signaling high friction. Anxiety often comes from looking at the whole mountain. Look only at the step right in front of you.",
+            color: "text-rose-700",
+            bg: "bg-rose-50",
+            border: "border-rose-100",
+            icon: <Heart size={20} />
+        };
+    }
+
+    if (doFirstCount > 3) {
+        return {
+            title: "Urgency Overload",
+            message: `You have ${doFirstCount} urgent tasks competing for attention. This is a common source of anxiety. Pick just one, and grant yourself permission to ignore the rest for 30 minutes.`,
+            color: "text-amber-700",
+            bg: "bg-amber-50",
+            border: "border-amber-100",
+            icon: <Zap size={20} />
+        };
+    }
+
+    return {
+        title: "Steady Flow",
+        message: "You are maintaining a healthy balance between urgency and importance. Keep moving steadily.",
+        color: "text-mindful-secondaryText",
+        bg: "bg-mindful-secondaryDim",
+        border: "border-mindful-secondary/30",
+        icon: <ShieldCheck size={20} />
+    };
+  };
+
+  const insight = getInsight();
+  const currentPerspective = PERSPECTIVE_QUOTES[quoteIndex];
+
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
+    <div className="space-y-6 pb-24 animate-in fade-in duration-500">
+      
+      {/* 1. Dynamic Insight Card */}
+      <div className={`p-5 rounded-2xl border ${insight.bg} ${insight.border}`}>
+        <div className="flex items-start gap-3">
+            <div className={`p-2 bg-white rounded-xl shadow-sm ${insight.color}`}>
+                {insight.icon}
+            </div>
+            <div>
+                <h3 className={`font-bold text-sm uppercase tracking-wide mb-1 ${insight.color}`}>
+                    {insight.title}
+                </h3>
+                <p className="text-slate-700 text-sm leading-relaxed">
+                    {insight.message}
+                </p>
+            </div>
+        </div>
+      </div>
+
+      {/* 2. Stats Grid */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-500 mb-2">
+            <CheckCircle2 size={16} className="text-mindful-secondary" />
+            <span className="font-medium text-xs uppercase">Done</span>
+          </div>
+          <div className="text-3xl font-bold text-slate-800">
+            {completedTasks.length}
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center gap-2 text-slate-500 mb-2">
+            <Smile size={16} />
+            <span className="font-medium text-xs uppercase">Moods Logged</span>
+          </div>
+          <div className="text-3xl font-bold text-slate-800">
+            {emotions.length}
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Perspective on Anxiety (Clickable) */}
+      <button 
+        onClick={handlePerspectiveClick}
+        className="w-full text-left bg-gradient-to-br from-indigo-50 via-purple-50 to-slate-50 p-6 rounded-2xl border border-indigo-100/50 hover:shadow-sm transition-all relative group"
+      >
+        <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-50 transition-opacity">
+            <RefreshCw size={14} className="text-indigo-400" />
+        </div>
+        <div className="flex items-center gap-2 mb-3 text-indigo-900/60">
+            <Brain size={18} />
+            <h3 className="font-bold text-xs uppercase tracking-wider">Perspective Shift</h3>
+        </div>
+        <blockquote className="text-lg font-medium text-slate-800 italic mb-4 relative z-10">
+            "{currentPerspective.quote}"
+        </blockquote>
+        <div className="text-xs text-slate-500 bg-white/50 inline-block px-3 py-1 rounded-full backdrop-blur-sm">
+            {currentPerspective.action}
+        </div>
+      </button>
+
+      {/* 4. Workload Balance Visualization */}
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-        <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
-          <Activity className="text-indigo-500" size={20} />
-          Current Focus Balance
+        <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+          <Activity className="text-slate-400" size={16} />
+          Current Load Distribution
         </h3>
-        <p className="text-sm text-slate-500 mb-6">
-          Understanding your workload helps reduce anxiety. Here is how your pending tasks are distributed.
-        </p>
         
-        <div className="space-y-3">
+        <div className="space-y-4">
           {(Object.values(QUADRANTS) as typeof QUADRANTS[keyof typeof QUADRANTS][]).map((q) => {
             const count = quadrantCounts[q.id] || 0;
             const percentage = totalBacklog > 0 ? (count / totalBacklog) * 100 : 0;
             
             return (
               <div key={q.id} className="relative">
-                <div className="flex justify-between text-xs font-medium mb-1">
-                  <span className={`${q.color}`}>{q.label}</span>
-                  <span className="text-slate-400">{count} tasks</span>
+                <div className="flex justify-between text-xs font-medium mb-1.5">
+                  <span className={`${q.color} flex items-center gap-1.5`}>
+                    <span className={`w-2 h-2 rounded-full ${q.color.replace('text-', 'bg-')}`}></span>
+                    {q.label}
+                  </span>
+                  <span className="text-slate-400">{count}</span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                <div className="w-full bg-slate-50 rounded-full h-1.5 overflow-hidden">
                   <div 
                     className={`h-full rounded-full transition-all duration-1000 ${q.color.replace('text-', 'bg-')}`}
                     style={{ width: `${percentage}%` }}
@@ -54,34 +230,48 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, emotions })
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-emerald-50 p-5 rounded-2xl border border-emerald-100">
-          <div className="flex items-center gap-2 text-emerald-800 mb-2">
-            <CheckCircle2 size={18} />
-            <span className="font-semibold text-sm">Completed</span>
-          </div>
-          <div className="text-3xl font-bold text-emerald-700">
-            {completedTasks.length}
-          </div>
-          <p className="text-xs text-emerald-600 mt-1">Tasks finished</p>
-        </div>
+      {/* 5. Coping Tips */}
+      <div>
+        <h3 className="text-sm font-bold text-slate-800 mb-3 ml-1 flex items-center gap-2">
+            <Lightbulb size={16} className="text-amber-500" />
+            Micro-Strategies
+        </h3>
+        <div className="space-y-3">
+            <div className="bg-white p-4 rounded-xl border border-slate-100 hover:border-blue-200 transition-colors cursor-pointer group">
+                <div className="flex items-start gap-4">
+                    <div className="bg-sky-50 text-sky-600 p-2 rounded-lg group-hover:scale-110 transition-transform">
+                        <Wind size={20} />
+                    </div>
+                    <div>
+                        <h4 className="font-semibold text-slate-800 text-sm mb-1">Box Breathing</h4>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            Inhale for 4s, hold for 4s, exhale for 4s, hold for 4s. This physically forces your nervous system to calm down.
+                        </p>
+                    </div>
+                </div>
+            </div>
 
-        <div className="bg-indigo-50 p-5 rounded-2xl border border-indigo-100">
-          <div className="flex items-center gap-2 text-indigo-800 mb-2">
-            <Smile size={18} />
-            <span className="font-semibold text-sm">Check-ins</span>
-          </div>
-          <div className="text-3xl font-bold text-indigo-700">
-            {emotions.length}
-          </div>
-          <p className="text-xs text-indigo-600 mt-1">Mindful moments</p>
+            <div className="bg-white p-4 rounded-xl border border-slate-100 hover:border-emerald-200 transition-colors cursor-pointer group">
+                <div className="flex items-start gap-4">
+                    <div className="bg-emerald-50 text-emerald-600 p-2 rounded-lg group-hover:scale-110 transition-transform">
+                        <Coffee size={20} />
+                    </div>
+                    <div>
+                        <h4 className="font-semibold text-slate-800 text-sm mb-1">The 5-Minute Start</h4>
+                        <p className="text-xs text-slate-500 leading-relaxed">
+                            Tell yourself you only have to do the task for 5 minutes. If you want to stop after that, you can. (You usually won't).
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
       </div>
 
+      {/* 6. Emotional History */}
       {emotions.length > 0 && (
         <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-          <h3 className="text-lg font-semibold text-slate-800 mb-4">Emotional History</h3>
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+          <h3 className="text-sm font-bold text-slate-800 mb-4">Emotional Log</h3>
+          <div className="flex gap-2 overflow-x-auto pb-4 scrollbar-hide">
             {[...emotions].reverse().slice(0, 10).map((e, i) => {
               const emojis: Record<string, string> = {
                 'OVERWHELMED': '😰',
@@ -91,10 +281,13 @@ export const AnalyticsView: React.FC<AnalyticsViewProps> = ({ tasks, emotions })
                 'CONTROL': '😌',
               };
               return (
-                <div key={i} className="flex flex-col items-center min-w-[50px] p-2 bg-slate-50 rounded-lg border border-slate-100">
-                  <span className="text-2xl mb-1">{emojis[e.feeling]}</span>
-                  <span className="text-[10px] text-slate-400">
+                <div key={i} className="flex flex-col items-center min-w-[60px] p-3 bg-slate-50 rounded-xl border border-slate-100 shrink-0">
+                  <span className="text-2xl mb-2">{emojis[e.feeling]}</span>
+                  <span className="text-[10px] font-medium text-slate-400">
                     {new Date(e.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                  </span>
+                  <span className="text-[9px] text-slate-300 mt-0.5 capitalize">
+                      {e.feeling.toLowerCase()}
                   </span>
                 </div>
               );

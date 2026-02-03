@@ -18,6 +18,7 @@ export interface Task {
   status: TaskStatus;
   createdAt: number;
   completedAt?: number;
+  order: number;
 }
 
 export interface EmotionalState {
