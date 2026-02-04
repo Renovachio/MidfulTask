@@ -27,7 +27,7 @@ const App: React.FC = () => {
   const [darkMode, setDarkMode] = useState(false);
   
   // Navigation State
-  const [activeTab, setActiveTab] = useState<'home' | 'board' | 'analytics'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'board' | 'analytics' | 'settings'>('home');
 
   // Task Creation Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -63,12 +63,9 @@ const App: React.FC = () => {
     const savedTheme = localStorage.getItem('mindful_theme');
     if (savedTheme === 'dark') {
       setDarkMode(true);
-    } else if (savedTheme === 'light') {
-      setDarkMode(false);
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setDarkMode(true);
-    }
-
+    } 
+    // Default is light mode (false), so we do not check system preference anymore to strictly enforce default light.
+    
     setIsLoaded(true);
 
     // Trigger initial emotional check-in if tasks exist
@@ -257,14 +254,6 @@ const App: React.FC = () => {
               <p className="text-mindful-textLight dark:text-mindful-dark-textLight text-sm">Focus on what matters.</p>
             </div>
           </div>
-          
-          <button 
-            onClick={() => setDarkMode(!darkMode)}
-            className="p-3 rounded-full bg-white dark:bg-mindful-dark-card text-mindful-textLight dark:text-mindful-dark-textLight hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-sm"
-            aria-label="Toggle Dark Mode"
-          >
-            {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
         </header>
 
         {/* Main Content Area */}
@@ -467,14 +456,48 @@ const App: React.FC = () => {
           <AnalyticsView tasks={tasks} emotions={emotions} />
         )}
 
+        {activeTab === 'settings' && (
+          <div className="animate-in fade-in duration-300 max-w-lg mx-auto">
+             <div className="bg-white dark:bg-mindful-dark-card p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+                <h2 className="text-lg font-semibold text-mindful-text dark:text-mindful-dark-text mb-6">Settings</h2>
+                
+                <div className="flex items-center justify-between">
+                   <div className="flex items-center gap-3">
+                      <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
+                        {darkMode ? <Moon size={20} /> : <Sun size={20} />}
+                      </div>
+                      <div>
+                        <p className="font-medium text-mindful-text dark:text-mindful-dark-text">Dark Mode</p>
+                        <p className="text-xs text-mindful-textLight dark:text-mindful-dark-textLight">Adjust for eye comfort</p>
+                      </div>
+                   </div>
+                   
+                   <button 
+                     onClick={() => setDarkMode(!darkMode)}
+                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${darkMode ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                   >
+                     <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${darkMode ? 'translate-x-6' : 'translate-x-1'}`} />
+                   </button>
+                </div>
+             </div>
+             
+             <div className="mt-8 text-center text-xs text-slate-400">
+                <p>MindfulTask v1.0</p>
+                <p className="mt-1">Designed for peace of mind.</p>
+             </div>
+          </div>
+        )}
+
         {/* Floating Action Button */}
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="fixed bottom-24 right-6 bg-mindful-cta dark:bg-mindful-dark-cta text-white w-14 h-14 rounded-full shadow-lg shadow-slate-900/30 flex items-center justify-center hover:bg-mindful-ctaHover hover:scale-105 transition-all z-40 active:scale-95"
-          aria-label="Create new task"
-        >
-          <Plus size={28} />
-        </button>
+        {activeTab !== 'settings' && (
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="fixed bottom-24 right-6 bg-mindful-cta dark:bg-mindful-dark-cta text-white w-14 h-14 rounded-full shadow-lg shadow-slate-900/30 flex items-center justify-center hover:bg-mindful-ctaHover hover:scale-105 transition-all z-40 active:scale-95"
+            aria-label="Create new task"
+          >
+            <Plus size={28} />
+          </button>
+        )}
 
         {/* Bottom Navigation */}
         <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
