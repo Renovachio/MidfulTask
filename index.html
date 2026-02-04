@@ -8,14 +8,36 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
+            borderRadius: {
+              'xl': '12px',
+              '2xl': '16px',
+              '3xl': '24px',
+            },
+            transitionDuration: {
+              DEFAULT: '300ms',
+            },
             colors: {
               mindful: {
                 bg: '#E6EEF4',
+                text: '#2E3A42',     // Soft charcoal
+                textLight: '#6B7C87', // Secondary text
+                cta: '#8FB3C8',       // Gentle Action
+                ctaHover: '#7CA3B9',
                 secondary: '#A8C3B1',
-                secondaryDim: '#E5EDE8', // Light tint of secondary
-                secondaryText: '#5C7A65'  // Darker for contrast
+                secondaryDim: '#E5EDE8', 
+                secondaryText: '#5C7A65',
+                // Dark mode specific
+                dark: {
+                  bg: '#1F2A33',      // Night silence
+                  card: '#2A3642',    // Slightly lighter than bg
+                  text: '#DCE4EA',
+                  textLight: '#8B9DA9',
+                  cta: '#6A8C9F',     // Desaturated CTA
+                  secondary: '#8DA696', // Desaturated Sage
+                }
               }
             }
           }
@@ -25,7 +47,20 @@
     <style>
       body {
         font-family: 'Inter', sans-serif;
+        /* Default background - overridden by App.tsx logic for dark mode */
         background-color: #E6EEF4;
+        transition: background-color 0.3s ease, color 0.3s ease;
+      }
+      .dark body {
+        background-color: #1F2A33;
+      }
+      /* Hide scrollbar for clean UI */
+      .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+      }
+      .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
       }
     </style>
   <script type="importmap">

@@ -12,13 +12,13 @@ export const Button: React.FC<ButtonProps> = ({
   className = '', 
   ...props 
 }) => {
-  const baseStyles = "inline-flex items-center justify-center rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
+  const baseStyles = "inline-flex items-center justify-center rounded-2xl font-medium transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed";
   
   const variants = {
-    primary: "bg-slate-900 text-white hover:bg-slate-800 focus:ring-slate-900",
-    secondary: "bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 focus:ring-slate-500",
-    danger: "bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-600",
-    ghost: "text-slate-600 hover:bg-slate-100 focus:ring-slate-500",
+    primary: "bg-mindful-cta text-white hover:bg-mindful-ctaHover focus:ring-mindful-cta dark:bg-mindful-dark-cta dark:hover:bg-opacity-90",
+    secondary: "bg-white text-mindful-text border border-slate-200 hover:bg-slate-50 focus:ring-slate-300 dark:bg-mindful-dark-card dark:border-slate-700 dark:text-mindful-dark-text dark:hover:bg-slate-800",
+    danger: "bg-rose-600 text-white hover:bg-rose-700 focus:ring-rose-600 dark:bg-rose-900/80",
+    ghost: "text-mindful-textLight hover:bg-slate-100 focus:ring-slate-300 dark:text-mindful-dark-textLight dark:hover:bg-slate-800",
   };
 
   const sizes = {
