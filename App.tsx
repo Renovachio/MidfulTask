@@ -194,6 +194,37 @@ const App: React.FC = () => {
     });
   };
 
+  const handleDragSwap = (sourceId: string, targetId: string) => {
+    setTasks(prev => {
+      const sourceIndex = prev.findIndex(t => t.id === sourceId);
+      const targetIndex = prev.findIndex(t => t.id === targetId);
+
+      if (sourceIndex === -1 || targetIndex === -1) return prev;
+
+      const newTasks = [...prev];
+      const sourceTask = newTasks[sourceIndex];
+      const targetTask = newTasks[targetIndex];
+
+      // To visually swap them in the sorted list, we swap their sorting criteria (Order and Quadrant)
+      const tempOrder = sourceTask.order;
+      const tempQuadrant = sourceTask.quadrant;
+
+      newTasks[sourceIndex] = {
+        ...sourceTask,
+        order: targetTask.order,
+        quadrant: targetTask.quadrant
+      };
+
+      newTasks[targetIndex] = {
+        ...targetTask,
+        order: tempOrder,
+        quadrant: tempQuadrant
+      };
+
+      return newTasks;
+    });
+  };
+
   const attemptStartTask = (task: Task) => {
     if (inProgressTasks.length >= 1) {
       alert("Mindful Focus: Please complete your current task before starting a new one.");
@@ -353,6 +384,7 @@ const App: React.FC = () => {
                             onMove={attemptStartTask}
                             onDelete={handleDeleteTask}
                             onReorder={handleReorder}
+                            onDragSwap={handleDragSwap}
                             canMoveUp={qIndex > 0}
                             canMoveDown={qIndex < quadrantTasks.length - 1}
                             isNextUp={index === 0}

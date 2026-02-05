@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { CheckCircle2, Play, AlertCircle, Trash2, ArrowUp, ArrowDown, Bell } from 'lucide-react';
 import { Task, TaskStatus } from '../types';
 import { QUADRANTS } from '../constants';
@@ -8,6 +8,7 @@ interface TaskCardProps {
   onMove: (task: Task) => void;
   onDelete: (task: Task) => void;
   onReorder?: (task: Task, direction: 'up' | 'down') => void;
+  onDragSwap?: (sourceId: string, targetId: string) => void;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
   isNextUp?: boolean; // Is this the top priority backlog item?
@@ -18,11 +19,64 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   onMove, 
   onDelete, 
   onReorder,
+  onDragSwap,
   canMoveUp,
   canMoveDown,
   isNextUp 
 }) => {
   const quadrantInfo = QUADRANTS[task.quadrant];
+
+  // Drag and Drop Logic for Touch Devices
+  const [isDragging, setIsDragging] = useState(false);
+  const touchTimerRef = useRef<number | null>(null);
+  const lastSwapTimeRef = useRef<number>(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    // Only enable for backlog items
+    if (task.status !== TaskStatus.BACKLOG || !onDragSwap) return;
+
+    // Start a timer for long press
+    touchTimerRef.current = window.setTimeout(() => {
+      setIsDragging(true);
+      if (navigator.vibrate) navigator.vibrate(50);
+    }, 300); // 300ms hold to activate drag
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    // If we moved before the timer fired, cancel the timer (it's a scroll)
+    if (touchTimerRef.current && !isDragging) {
+      clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+
+    if (!isDragging || !onDragSwap) return;
+
+    // Prevent scrolling while dragging
+    if (e.cancelable) e.preventDefault();
+
+    // Find element under finger
+    const touch = e.touches[0];
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    const targetCard = target?.closest('[data-task-id]') as HTMLElement;
+
+    // Throttle the swap to prevent flickering (max 1 swap per 250ms)
+    const now = Date.now();
+    if (now - lastSwapTimeRef.current < 250) return;
+
+    if (targetCard && targetCard.dataset.taskId && targetCard.dataset.taskId !== task.id) {
+      onDragSwap(task.id, targetCard.dataset.taskId);
+      lastSwapTimeRef.current = now;
+      if (navigator.vibrate) navigator.vibrate(10); // Subtle feedback on swap
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (touchTimerRef.current) {
+      clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+    setIsDragging(false);
+  };
 
   // Helper to determine button action and style
   const renderActionButton = () => {
@@ -69,8 +123,15 @@ export const TaskCard: React.FC<TaskCardProps> = ({
   };
 
   return (
-    <div className={`
-      relative group bg-white dark:bg-mindful-dark-card p-4 rounded-xl border transition-all duration-300
+    <div 
+      data-task-id={task.id}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+      className={`
+      relative group bg-white dark:bg-mindful-dark-card p-4 rounded-xl border transition-all duration-200
+      ${isDragging ? 'z-50 scale-105 shadow-xl ring-2 ring-indigo-500 border-indigo-500' : ''}
       ${task.status === TaskStatus.IN_PROGRESS ? `shadow-md ring-2 ring-blue-200 dark:ring-blue-800 border-transparent` : `${quadrantInfo.borderColor} dark:border-slate-700 hover:shadow-md`}
       ${task.status === TaskStatus.DONE ? 'opacity-70 bg-mindful-secondaryDim/30 dark:bg-slate-800 border-mindful-secondary/20 dark:border-slate-700' : ''}
     `}>
