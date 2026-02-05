@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   EisenhowerQuadrant, 
   Task, 
@@ -18,19 +18,40 @@ import { Button } from './components/Button';
 import { EmotionalCheckIn } from './components/EmotionalCheckIn';
 import { BottomNav } from './components/BottomNav';
 import { AnalyticsView } from './components/AnalyticsView';
-import { BrainCircuit, ChevronDown, Plus, Play, Sparkles, Moon, Sun } from 'lucide-react';
+import { BrainCircuit, ChevronDown, Plus, Play, Sparkles, Moon, Sun, Download, Upload, Trash2, FileText, Database } from 'lucide-react';
 
 const App: React.FC = () => {
+  // Load tasks and emotions from storage
   const [tasks, setTasks] = useState<Task[]>([]);
   const [emotions, setEmotions] = useState<EmotionalState[]>([]);
   const [isLoaded, setIsLoaded] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
   
-  // Navigation State
-  const [activeTab, setActiveTab] = useState<'home' | 'board' | 'analytics' | 'settings'>('home');
+  // Theme State - Initialize from storage to prevent flash
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('mindful_theme') === 'dark';
+    }
+    return false;
+  });
+  
+  // Navigation State - Persisted
+  const [activeTab, setActiveTab] = useState<'home' | 'board' | 'analytics' | 'settings'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('mindful_active_tab');
+      if (saved && ['home', 'board', 'analytics', 'settings'].includes(saved)) {
+        return saved as 'home' | 'board' | 'analytics' | 'settings';
+      }
+    }
+    return 'home';
+  });
 
-  // Task Creation Modal State
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  // Task Creation Modal State - Persisted
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('mindful_modal_open') === 'true';
+    }
+    return false;
+  });
 
   // Friction Modal State
   const [frictionModalOpen, setFrictionModalOpen] = useState(false);
@@ -40,8 +61,16 @@ const App: React.FC = () => {
   const [checkInOpen, setCheckInOpen] = useState(false);
   const [checkInContext, setCheckInContext] = useState<'STARTUP' | 'COMPLETION'>('STARTUP');
 
-  // Backlog View State
-  const [showFullBacklog, setShowFullBacklog] = useState(false);
+  // Backlog View State - Persisted
+  const [showFullBacklog, setShowFullBacklog] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('mindful_show_backlog') === 'true';
+    }
+    return false;
+  });
+
+  // File Input Ref for Import
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Load data on mount
   useEffect(() => {
@@ -58,20 +87,13 @@ const App: React.FC = () => {
 
     setTasks(loadedTasks);
     setEmotions(loadedEmotions);
-    
-    // Check local storage for theme
-    const savedTheme = localStorage.getItem('mindful_theme');
-    if (savedTheme === 'dark') {
-      setDarkMode(true);
-    } 
-    // Default is light mode (false), so we do not check system preference anymore to strictly enforce default light.
-    
     setIsLoaded(true);
 
-    // Trigger initial emotional check-in if tasks exist
-    if (loadedTasks.length > 0) {
+    // Trigger initial emotional check-in if tasks exist and it's a fresh session (simple heuristic)
+    if (loadedTasks.length > 0 && !sessionStorage.getItem('session_started')) {
       setCheckInContext('STARTUP');
       setCheckInOpen(true);
+      sessionStorage.setItem('session_started', 'true');
     }
 
     // Request Notification Permission
@@ -80,7 +102,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Theme Effect
+  // Persist Theme
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -93,12 +115,26 @@ const App: React.FC = () => {
     }
   }, [darkMode]);
 
-  // Persist data
+  // Persist Tasks
   useEffect(() => {
     if (isLoaded) {
       saveTasks(tasks);
     }
   }, [tasks, isLoaded]);
+
+  // Persist Navigation Status
+  useEffect(() => {
+    localStorage.setItem('mindful_active_tab', activeTab);
+  }, [activeTab]);
+
+  // Persist UI States
+  useEffect(() => {
+    localStorage.setItem('mindful_modal_open', String(isCreateModalOpen));
+  }, [isCreateModalOpen]);
+
+  useEffect(() => {
+    localStorage.setItem('mindful_show_backlog', String(showFullBacklog));
+  }, [showFullBacklog]);
 
   // Check Reminders
   useEffect(() => {
@@ -271,6 +307,142 @@ const App: React.FC = () => {
     setCheckInOpen(false);
   };
 
+  // --- Data Management Functions ---
+
+  const escapeCsv = (str: string | number | undefined | null) => {
+    if (str === null || str === undefined) return '';
+    const stringValue = String(str);
+    if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+      return `"${stringValue.replace(/"/g, '""')}"`;
+    }
+    return stringValue;
+  };
+
+  const handleExportCsv = () => {
+    const headers = ['Type', 'Id', 'Content', 'Quadrant', 'Status', 'CreatedAt', 'CompletedAt', 'Order', 'Reminder', 'Feeling', 'Context', 'Timestamp'];
+    const rows = [headers.join(',')];
+
+    tasks.forEach(t => {
+      rows.push([
+        'TASK',
+        t.id,
+        t.content,
+        t.quadrant,
+        t.status,
+        t.createdAt,
+        t.completedAt || '',
+        t.order,
+        t.reminder || '',
+        '', '', ''
+      ].map(escapeCsv).join(','));
+    });
+
+    emotions.forEach(e => {
+      rows.push([
+        'EMOTION',
+        '', '', '', '', '', '', '', '',
+        e.feeling,
+        e.context,
+        e.timestamp
+      ].map(escapeCsv).join(','));
+    });
+
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mindfultask_data_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleImportCsv = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+
+      try {
+        const lines = text.split('\n');
+        const newTasks: Task[] = [];
+        const newEmotions: EmotionalState[] = [];
+
+        // Skip header
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          
+          // Simple CSV parsing (assuming no commas in content for simplicity, or handle basic quotes)
+          // Robust parsing for quoted strings
+          const matches = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || line.split(','); 
+          // Fallback simple split if regex fails or for unquoted
+          const cells = line.split(',').map(c => {
+             if (c.startsWith('"') && c.endsWith('"')) return c.slice(1, -1).replace(/""/g, '"');
+             return c;
+          });
+
+          const type = cells[0];
+
+          if (type === 'TASK') {
+            newTasks.push({
+              id: cells[1] || crypto.randomUUID(),
+              content: cells[2],
+              quadrant: cells[3] as EisenhowerQuadrant,
+              status: cells[4] as TaskStatus,
+              createdAt: Number(cells[5]),
+              completedAt: cells[6] ? Number(cells[6]) : undefined,
+              order: Number(cells[7]),
+              reminder: cells[8] ? Number(cells[8]) : undefined
+            });
+          } else if (type === 'EMOTION') {
+            newEmotions.push({
+              feeling: cells[9] as EmotionalState['feeling'],
+              context: cells[10] as EmotionalState['context'],
+              timestamp: Number(cells[11])
+            });
+          }
+        }
+
+        if (newTasks.length > 0 || newEmotions.length > 0) {
+          if (confirm(`Found ${newTasks.length} tasks and ${newEmotions.length} emotional logs. Import and replace current data?`)) {
+            setTasks(newTasks);
+            setEmotions(newEmotions);
+            saveTasks(newTasks);
+            // Save emotions manually as we don't have a direct setter for storage here usually, but app saves on state change? 
+            // Actually App only saves tasks on state change in useEffect.
+            // Emotions need to be saved explicitly or we add an effect.
+            // Let's manually save them to be safe.
+            localStorage.setItem('mindful_emotions_v1', JSON.stringify(newEmotions));
+            alert('Import successful!');
+          }
+        } else {
+          alert('No valid data found in CSV.');
+        }
+
+      } catch (err) {
+        console.error(err);
+        alert('Failed to parse CSV file. Please ensure format is correct.');
+      }
+      
+      // Reset input
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  const handleClearAllData = () => {
+    if (confirm('DANGER: This will permanently delete all your tasks, emotional history, and settings. This action cannot be undone. Are you sure?')) {
+      localStorage.clear();
+      setTasks([]);
+      setEmotions([]);
+      sessionStorage.clear();
+      window.location.reload();
+    }
+  };
+
   return (
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'dark' : ''}`}>
       <div className="max-w-5xl mx-auto px-4 py-8 pb-32">
@@ -352,7 +524,6 @@ const App: React.FC = () => {
 
         {activeTab === 'board' && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start animate-in fade-in duration-300">
-            
             {/* Backlog Column */}
             <section className="space-y-4">
               <div className="flex items-center justify-between">
@@ -489,9 +660,9 @@ const App: React.FC = () => {
         )}
 
         {activeTab === 'settings' && (
-          <div className="animate-in fade-in duration-300 max-w-lg mx-auto">
+          <div className="animate-in fade-in duration-300 max-w-lg mx-auto space-y-6">
              <div className="bg-white dark:bg-mindful-dark-card p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
-                <h2 className="text-lg font-semibold text-mindful-text dark:text-mindful-dark-text mb-6">Settings</h2>
+                <h2 className="text-lg font-semibold text-mindful-text dark:text-mindful-dark-text mb-6">Preferences</h2>
                 
                 <div className="flex items-center justify-between">
                    <div className="flex items-center gap-3">
@@ -512,9 +683,74 @@ const App: React.FC = () => {
                    </button>
                 </div>
              </div>
+
+             <div className="bg-white dark:bg-mindful-dark-card p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800">
+                <h2 className="text-lg font-semibold text-mindful-text dark:text-mindful-dark-text mb-6 flex items-center gap-2">
+                  <Database size={20} className="text-indigo-500" />
+                  Data Management
+                </h2>
+                
+                <div className="space-y-4">
+                  
+                  {/* Export */}
+                  <div className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                     <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg">
+                          <Download size={18} />
+                        </div>
+                        <div>
+                          <p className="font-medium text-mindful-text dark:text-mindful-dark-text text-sm">Export Data</p>
+                          <p className="text-xs text-mindful-textLight dark:text-mindful-dark-textLight">Download as CSV file</p>
+                        </div>
+                     </div>
+                     <Button size="sm" variant="secondary" onClick={handleExportCsv}>
+                       Export
+                     </Button>
+                  </div>
+
+                  {/* Import */}
+                  <div className="flex items-center justify-between p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                     <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                          <Upload size={18} />
+                        </div>
+                        <div>
+                          <p className="font-medium text-mindful-text dark:text-mindful-dark-text text-sm">Import Data</p>
+                          <p className="text-xs text-mindful-textLight dark:text-mindful-dark-textLight">Restore from CSV backup</p>
+                        </div>
+                     </div>
+                     <input 
+                       type="file" 
+                       accept=".csv" 
+                       ref={fileInputRef}
+                       onChange={handleImportCsv}
+                       className="hidden" 
+                     />
+                     <Button size="sm" variant="secondary" onClick={() => fileInputRef.current?.click()}>
+                       Import
+                     </Button>
+                  </div>
+
+                  {/* Clear Data */}
+                  <div className="border-t border-slate-100 dark:border-slate-800 pt-4 mt-2">
+                     <div className="flex items-center justify-between p-3 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/10 transition-colors cursor-pointer group" onClick={handleClearAllData}>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 rounded-lg group-hover:bg-rose-200 dark:group-hover:bg-rose-900/50 transition-colors">
+                              <Trash2 size={18} />
+                            </div>
+                            <div>
+                              <p className="font-medium text-rose-700 dark:text-rose-400 text-sm">Clear All Data</p>
+                              <p className="text-xs text-rose-500/80 dark:text-rose-500/80">Reset app to fresh state</p>
+                            </div>
+                        </div>
+                     </div>
+                  </div>
+
+                </div>
+             </div>
              
              <div className="mt-8 text-center text-xs text-slate-400">
-                <p>MindfulTask v1.0</p>
+                <p>MindfulTask v1.1</p>
                 <p className="mt-1">Designed for peace of mind.</p>
              </div>
           </div>
